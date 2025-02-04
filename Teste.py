@@ -1,11 +1,13 @@
 import os
 import shutil
 from datetime import datetime, timedelta
-import locale
 import pandas as pd
 import calendar
 
-base_dir = r"C:/Users/caran/Desktop/Contabilidade/"
+
+# Exemplo de uso
+base_path = "./Contabilidade/"
+base_dir = "./Contabilidade/"
 
 def listar_arquivos_xlsx(diretorio):
     arquivos = []
@@ -21,10 +23,21 @@ def controle_pastas(base_dir):
     poc_dir = os.path.join(base_dir, "POC")
     ano_atual = datetime.now().strftime("%Y")
 
-    # Define o locale para português
-    locale.setlocale(locale.LC_TIME, "pt_BR.utf8")
-    mes_anterior = (datetime.now().replace(day=1) - timedelta(days=1)).strftime("%B")
-    
+    meses_portugues = {
+        "January": "Janeiro", "February": "Fevereiro", "March": "Março", 
+        "April": "Abril", "May": "Maio", "June": "Junho", 
+        "July": "Julho", "August": "Agosto", "September": "Setembro", 
+        "October": "Outubro", "November": "Novembro", "December": "Dezembro"
+    }
+
+    # Obtendo o nome do mês anterior em inglês
+    mes_anterior_en = (datetime.now().replace(day=1) - timedelta(days=1)).strftime("%B")
+
+    # Convertendo para português
+    mes_anterior = meses_portugues.get(mes_anterior_en, mes_anterior_en)
+
+    print(mes_anterior)
+
     # Caminhos das pastas
     ano_dir = os.path.join(poc_dir, ano_atual)
     mes_anterior_dir = os.path.join(ano_dir, mes_anterior)
@@ -41,9 +54,11 @@ def controle_pastas(base_dir):
     # Verifica a existência de arquivos .xlsx na pasta POC e Mês
     arquivos_xlsx = set(listar_arquivos_xlsx(poc_dir) + listar_arquivos_xlsx(mes_anterior_dir))
 
+    print(arquivos_xlsx)
+
     if not arquivos_xlsx:
         # Caso não existam, verificar na pasta do mês atual
-        mes_atual = datetime.datetime.now().strftime("%B")
+        mes_atual = datetime.now().strftime("%B")
         mes_atual_dir = os.path.join(ano_dir, mes_atual)
         if not os.path.exists(mes_atual_dir):
             raise Exception(f"Business Exception: Nenhum arquivo .xlsx encontrado em {poc_dir} ou {mes_anterior_dir}")
@@ -52,16 +67,18 @@ def controle_pastas(base_dir):
     arquivo_encontrado = None
     for arquivo in arquivos_xlsx:
         if "POC_Composição" in arquivo:
-            arquivo_encontrado = os.path.join(poc_dir, arquivo)
+            arquivo_encontrado = arquivo
             print(f"O arquivo: {arquivo_encontrado}, localizado com sucesso.")
+            
+            # Move o arquivo encontrado para o diretório destino
+            destino = os.path.join(diretorio_arquivos, os.path.basename(arquivo_encontrado))
+            shutil.move(arquivo_encontrado, destino)
             break
 
     if not arquivo_encontrado:
         raise Exception("Business Exception: Nenhum arquivo contendo 'POC_Composição.xlsx' foi encontrado.")
 
-    # Move o arquivo encontrado para o diretório destino
-    destino = os.path.join(diretorio_arquivos, os.path.basename(arquivo_encontrado))
-    shutil.move(arquivo_encontrado, destino)
+    print(arquivo_encontrado)
 
     return True, arquivo_encontrado
 
@@ -93,8 +110,6 @@ def tratar_competencia(competencia):
     return True, mes_tratado, ano_tratado
 
 
-# Exemplo de uso
-base_path = r"C:\Users\caran\Desktop\Contabilidade"
 
 def processar_excel(arquivo_encontrado):
     # Lendo o arquivo Excel
