@@ -477,7 +477,7 @@ def obter_mes_e_ultimo_dia(mes_tratado, ano_tratado):
 
 
 def acesso_agendar_planilhas(navigate):
-    ''' Faz a seleção dos retornos pendentes '''
+    ''' Faz a seleção do agendar planilha '''
     
     # ---- Menu de Pesquisar ----
     logging.info('|--> Procurando menu de busca') 
@@ -522,188 +522,111 @@ def acesso_agendar_planilhas(navigate):
         save_print(navigate, '08_ERRO_Procurando_menu_de_busca.png')
         raise ImageNotFoundException(f"Imagem '{image_path}' não encontrada após {TIMEOUT} segundos.")
 
-def processar_empreendimentos(navigate):
-    ''' Realiza a ação de processar o documento '''
 
-    # ---- Aba Contas a Receber ----
-    logging.info('|--> Procurando aba Contas a Receber') 
+def processar_empreendimentos(navigate, inicio, fim):
+    ''' Realiza a ação de processar as informacoes do documento '''
+
+    # ---- Tela Adendar por empreendimento ----
+    logging.info('|--> Selecionando os empreendimentos') 
     image_path = 'png_elements/19_label_empreendimentos_blocos.png'
-    coords = find_element(image_path, navigate, 'Reconhecimento da aba Contas a Receber') 
+    coords = find_element(image_path, navigate, 'Selecionando os empreendimentos') 
 
     if coords:        
         # -- ALT + M --
-        logging.info('|--> Apertando ALT + M') # Simular o atalho alt + S para clicar no botão selecionar
+        logging.info('|--> Apertando ALT + M') # Simular o atalho alt + M para clicar no botão marcar todos
         ACTION.key_down(Keys.ALT).send_keys('m').key_up(Keys.ALT).perform()    
-        save_print(navigate, '07_4_11_Selecionando_criterios_alt_s.png')
+        save_print(navigate, '19_01_Selecionando_criterios_alt_M.png')
         time.sleep(1) 
 
         # -- ALT + L --
-        logging.info('|--> Apertando ALT + L') # Simular o atalho alt + S para clicar no botão selecionar
+        logging.info('|--> Apertando ALT + L') # Simular o atalho alt + L para clicar no botão alterar dados
         ACTION.key_down(Keys.ALT).send_keys('l').key_up(Keys.ALT).perform()    
-        save_print(navigate, '07_4_11_Selecionando_criterios_alt_s.png')
+        save_print(navigate, '19_02_Selecionando_criterios_alt_L.png')
         time.sleep(1)           
 
     else:
-        save_print(navigate, '10_ERRO_Procurando_contas_a_receber.png')
+        save_print(navigate, '19_ERRO_Selecionar_empreendimento.png')
         raise ImageNotFoundException(f"Imagem '{image_path}' não encontrada após {TIMEOUT} segundos.")  
 
-    # ---- Pop Up dados Agenda ----
-    logging.info('|--> Procurando aba Contas a Receber') 
+    # ---- Pop Up dados da agenda ----
+    logging.info('|--> Procurando pop up dados da agenda') 
     image_path = 'png_elements/20_dados_agenda.png'
-    coords = find_element(image_path, navigate, 'Reconhecimento da aba Contas a Receber') 
+    coords = find_element(image_path, navigate, 'Reconhecimento do pop up dados da agenda') 
 
     if coords:        
         # -- TAB --
         logging.info('|--> Apertando TAB') 
         ACTION.send_keys(Keys.TAB).perform()
-        save_print(navigate, '07_4_7_Selecionando_criterios_tab.png')
+        save_print(navigate, '20_01_Selecionando_criterios_tab.png')
         time.sleep(1)
-
-        # -- Valor --   
-        logging.info('|--> Inserindo valor 1')  
-        ACTION.send_keys(codigo).perform()
-        time.sleep(1) 
-        save_print(navigate, '07_4_8_Selecionando_valor_1.png')
 
         # -- TAB --
         logging.info('|--> Apertando TAB') 
         ACTION.send_keys(Keys.TAB).perform()
-        save_print(navigate, '07_4_7_Selecionando_criterios_tab.png')
+        save_print(navigate, '20_02_Selecionando_criterios_tab.png')
         time.sleep(1)
 
         # -- Valor --   
-        logging.info('|--> Inserindo valor 1')  
-        ACTION.send_keys(codigo).perform()
+        logging.info('|--> Inserindo data inicio')  
+        ACTION.send_keys(inicio).perform()
         time.sleep(1) 
-        save_print(navigate, '07_4_8_Selecionando_valor_1.png')
+        save_print(navigate, '20_03_Selecionando_data_inicio.png')
 
-        # -- ALT + L --
-        logging.info('|--> Apertando ALT + O') # Simular o atalho alt + o para clicar no botão OK
+        # -- TAB --
+        logging.info('|--> Apertando TAB') 
+        ACTION.send_keys(Keys.TAB).perform()
+        save_print(navigate, '20_04_Selecionando_criterios_tab.png')
+        time.sleep(1)
+
+        # -- Valor --   
+        logging.info('|--> Inserindo data fim')  
+        ACTION.send_keys(fim).perform()
+        time.sleep(1) 
+        save_print(navigate, '20_05_Selecionando_data_fim.png')
+
+        # -- ALT + O --
+        logging.info('|--> Apertando ALT + O') # Simular o atalho alt + O para clicar no botão OK
         ACTION.key_down(Keys.ALT).send_keys('o').key_up(Keys.ALT).perform()    
-        save_print(navigate, '07_4_11_Selecionando_criterios_alt_s.png')
-        time.sleep(1)           
+        save_print(navigate, '20_06_Selecionando_criterios_alt_o.png')
+        time.sleep(1)
+
+         # ---- Pop Up confirmacao ----
+        logging.info('|--> Procurando pop up confirmacao') 
+        image_path = 'png_elements/21_pop_up_confirmacao.png'
+        coords = find_element(image_path, navigate, 'Reconhecimento do pop up confirmacao') 
+
+        if coords:  
+
+            # -- Enter --   
+            logging.info('|--> Apertando ENTER para Sim do pop up de confirmacao')  
+            ACTION.send_keys(Keys.ENTER).perform()
+            time.sleep(3) 
+            save_print(navigate, '20_07_otao_sim_pop_up_confirmacao.png')  
+
+            # -- ALT + G --
+            logging.info('|--> Apertando ALT + G') # Simular o atalho alt + O para clicar no botão Gerar
+            ACTION.key_down(Keys.ALT).send_keys('g').key_up(Keys.ALT).perform()    
+            save_print(navigate, '20_08_Selecionando_criterios_alt_G.png')
+            time.sleep(1)
+
+        # -- Enter --   
+        logging.info('|--> Apertando ENTER para Sim do pop up de confirmacao')  
+        ACTION.send_keys(Keys.ENTER).perform()
+        time.sleep(3) 
+        save_print(navigate, '20_09_Pop_up_gerando_planilha.png')     
+
+        # -- Enter --   
+        logging.info('|--> Apertando ENTER para OK do pop up de informacao')  
+        ACTION.send_keys(Keys.ENTER).perform()
+        time.sleep(3) 
+        save_print(navigate, '20_09_Pop_up_planilha_gerada_com_sucesso.png')         
 
     else:
-        save_print(navigate, '10_ERRO_Procurando_contas_a_receber.png')
+        save_print(navigate, '20_ERRO_Procurando_pop_up_dados_agenda.png')
         raise ImageNotFoundException(f"Imagem '{image_path}' não encontrada após {TIMEOUT} segundos.")  
 
         return True
 
-def processar_documento(navigate):
-    ''' Realiza a ação de processar o documento '''
-
-    # ---- Aba Contas a Receber ----
-    logging.info('|--> Procurando aba Contas a Receber') 
-    image_path = 'png_elements/09_contas_receber.png'
-    coords = find_element(image_path, navigate, 'Reconhecimento da aba Contas a Receber') 
-
-    if not coords:
-        save_print(navigate, '10_ERRO_Procurando_contas_a_receber.png')
-        raise ImageNotFoundException(f"Imagem '{image_path}' não encontrada após {TIMEOUT} segundos.")
-  
-    click(coords[0] + 51, coords[1] + 8)    
-    save_print(navigate, '10_Acessando_menu_contas_a_receber.png') 
-
-
-    # -- Buscando Lupa --
-    logging.info('|--> Procurando lupa da Contas a Receber')
-    image_path = 'png_elements/17_button_lupa.png'
-    coords = find_element(image_path, navigate, 'Reconhecimento do botão de lupa') 
-
-    if not coords:
-        save_print(navigate, '10_ERRO_Procurando_lupa_da_contas_a_receber.png')
-        raise ImageNotFoundException(f"Imagem '{image_path}' não encontrada após {TIMEOUT} segundos.")
-  
-    click(coords[0] + 13, coords[1] + 15)    
-    save_print(navigate, '10_1_contas_a_receber_lupa.png') 
-
-
-    # -- END --   
-    logging.info('|--> Apertando END ultimo item da lista')    
-    ACTION.send_keys(Keys.END).perform()  
-    time.sleep(1) 
-    save_print(navigate, '10_2_contas_a_receber_end.png')
-
-
-    # -- Processar dados --
-    logging.info('|--> Procurando Processar Dados')
-    image_path = 'png_elements/10_processar_dados.png'
-    coords = find_element(image_path, navigate, 'Reconhecimento do Processar Dados') 
-
-    if not coords:
-        save_print(navigate, '10_ERRO_Procurando_processar_dados.png')
-        raise ImageNotFoundException(f"Imagem '{image_path}' não encontrada após {TIMEOUT} segundos.")
-  
-    click(coords[0] + 53, coords[1] + 12)    
-    save_print(navigate, '10_3_contas_a_receber_processar_docts.png') 
-
-
-    # -- Sim --
-    logging.info('|--> Selecionando Sim')
-    image_path = 'png_elements/11_botao_sim.png'
-    coords = find_element(image_path, navigate, 'Confirmando Processar Dados') 
-
-    if not coords:
-        save_print(navigate, '10_ERRO_Confirmar_processar_dados.png')
-        raise ImageNotFoundException(f"Imagem '{image_path}' não encontrada após {TIMEOUT} segundos.")
-  
-    click(coords[0] + 53, coords[1] + 12)    
-    save_print(navigate, '10_4_contas_a_receber_processar_docts_sim.png') 
-
-    return True
-
-
-def captura_info(navigate):  
-    ''' Extrai as informações de um documento processado '''
-
-    # ---- Captura informações saida ----
-    logging.info('|--> Capturando informações de saida') 
-    image_path = 'png_elements/12_pop_up_detalhes.png'
-    coords = find_element(image_path, navigate, 'Reconhecimento da imagem da pop up Detalhes') 
-
-    if not coords:
-        save_print(navigate, '12_ERRO_Buscando_aba_detalhes.png')
-        raise ImageNotFoundException(f"Imagem '{image_path}' não encontrada após {TIMEOUT} segundos.")
-  
-    click(coords[0] + 29, coords[1] + 13)    
-    save_print(navigate, '12_Acessando_aba_detalhes.png') 
-
-
-    # -- Selecionando caixa de texto --
-    logging.info('|--> Selecionando caixa de texto')
-    click(coords[0] + 29, coords[1] + 65)
-    time.sleep(1)
-
-
-    # ---- Aguarda processamento concluído ----
-    logging.info('|--> Aguardando conclusão do processamento')
-    start_time = time.time()
-    last_message_time = start_time
-    
-    while time.time() - start_time < TIMEOUT * 10:
-        time.sleep(INTERVAL)  # espera antes de tentar novamente
-
-        ACTION.key_down(Keys.CONTROL).send_keys('a').key_up(Keys.CONTROL).perform()
-        time.sleep(1)
-
-        ACTION.key_down(Keys.CONTROL).send_keys('c').key_up(Keys.CONTROL).perform()
-        time.sleep(1)
-        
-        # Pegar o conteúdo da área de transferência e salvar na variável
-        conteudo = pyperclip.paste()
-
-        if (processamento_concluido := STR_CONCLUIDO in conteudo):
-            return processamento_concluido, conteudo
-        
-        else:            
-            logging.info("Aguardando processamento")
-            
-            if time.time() - last_message_time >= 300:  # 300 seconds = 5 minutes
-                save_print(navigate, '12_1_Aguardando_processamento.png')
-                last_message_time = time.time()
-            
-    save_print(navigate, '12_ERRO_Capturando_info_de_detalhes.png')
-    return False, None
 
 
 def click(coord_x, coord_y):
@@ -1016,39 +939,22 @@ def run_routine():
                     return
                 
 
-                # # ---- Processando documento ---
+                # # ---- Processando empreendimentos ---
                 try:
-                    logging.info('|----> Processando documento')
-                    success = processar_documento(navigate)
+                    logging.info('|----> Processando empreendimentos')
+                    success = processar_empreendimentos(navigate , inicio, fim)
                     if not success:
                         raise Exception()
                     
-                    logging.info('|----> [S] Processando documento')
-                    save_print(navigate, '11_Documento Processado.png')
+                    logging.info('|----> [S] Processando empreendimentos')
+                    save_print(navigate, '11_empreendimento Processado.png')
                     
                 except Exception as e:
-                    logging.info('|----> [E] Processando documento\n', e)
-                    save_print(navigate, '10_ERRO_processando_documento.png')
-                    send_error(rpa_data_id, dash_data_id, 'Erro: Falha durante processamento do documento')
+                    logging.info('|----> [E] Processando empreendimentos\n', e)
+                    save_print(navigate, '10_ERRO_processando_empreendimentos.png')
+                    send_error(rpa_data_id, dash_data_id, 'Erro: Falha durante processamento dos empreendimentos')
                     return
-                
-
-                # # ---- Capturando informações finais ---
-                try:
-                    logging.info('|----> Capturando informações finais')
-                    success, content = captura_info(navigate)
-                    if not success:
-                        raise Exception()
-                    
-                    logging.info('|----> [S] Capturando informações finais')
-                    save_print(navigate, '13_Documento_Processado.png')                
-                    
-                except Exception as e:
-                    logging.info('|----> [E] Capturando informações finais\n', e)
-                    save_print(navigate, '12_ERRO_obtendo_informacao_execucao.png')
-                    send_error(rpa_data_id, dash_data_id, 'Erro: Falha durante a captura do resultado da execucao')
-                    return
-            
+                          
 
             # ---- Enviando informações finais ---
             logging.info('|----> Enviando informações finais')
