@@ -26,7 +26,7 @@ STR_CONCLUIDO = 'Processamento concluído'
 
 # Variaveis de ambiente
 base_path = "./Contabilidade/"
-base_dir = "./Contabilidade/"
+# base_dir = "./Contabilidade/" -> testas comentado para excluir do codigo
 
 class ImageNotFoundException(Exception):
     """Exceção personalizada para quando a imagem não é encontrada dentro do timeout."""
@@ -109,30 +109,34 @@ def login_portal_mega(navigate):
     ''' Realiza o login no portal do mega '''
 
     # ---- Realizar Login ----
+    image_path = "png_elements/26_label_porla_mega.png"
+    if find_element(image_path, navigate, 'Buscando label tela login mega'): 
+           
+            save_print(navigate, '05_Acesso_tela_login_mega_.png')
+            time.sleep(1)
+            # -- Usuário --
+            logging.info('|--> Inserindo info do usuário')
+            ACTION.send_keys(c.c_user).perform()  
+            # time.sleep(3) 
+            # save_print(navigate, '05_Acesso_mega_User.png')
 
-    # -- Usuário --
-    logging.info('|--> Inserindo info do usuário')
-    ACTION.send_keys(c.c_user).perform()  
-    # time.sleep(3) 
-    # save_print(navigate, '05_Acesso_mega_User.png')
+            # -- Tab --   
+            logging.info('|--> Apertando TAB para senha')    
+            ACTION.send_keys(Keys.TAB).perform()  
+            # time.sleep(3) 
+            # save_print(navigate, '05_1_Acesso_mega_Tab.png')
 
-    # -- Tab --   
-    logging.info('|--> Apertando TAB para senha')    
-    ACTION.send_keys(Keys.TAB).perform()  
-    # time.sleep(3) 
-    # save_print(navigate, '05_1_Acesso_mega_Tab.png')
+            # -- Senha --   
+            logging.info('|--> Inserindo info da senha')  
+            ACTION.send_keys(c.c_pwd).perform()
+            # time.sleep(3) 
+            # save_print(navigate, '05_2_Acesso_mega_Senha.png')
 
-    # -- Senha --   
-    logging.info('|--> Inserindo info da senha')  
-    ACTION.send_keys(c.c_pwd).perform()
-    # time.sleep(3) 
-    # save_print(navigate, '05_2_Acesso_mega_Senha.png')
-
-    # -- Enter --   
-    logging.info('|--> Apertando ENTER para login')  
-    ACTION.send_keys(Keys.ENTER).perform()
-    # time.sleep(3) 
-    # save_print(navigate, '05_3_Acesso_mega_Enter.png')
+            # -- Enter --   
+            logging.info('|--> Apertando ENTER para login')  
+            ACTION.send_keys(Keys.ENTER).perform()
+            # time.sleep(3) 
+            # save_print(navigate, '05_3_Acesso_mega_Enter.png')
 
 
     # ---- Usuário já logado ----
@@ -296,10 +300,14 @@ def trocar_empresa(navigate, codigo):
     ACTION.send_keys(Keys.ENTER).perform()    
     save_print(navigate, '07_4_10_Selecionando_criterios_enter.png')
 
-    if is_image_present(image_path, navigate, 'Validando se campo Consolidador carregou com sucesso', timeout=30):
-        logging.info('|--> Campo Consolidador carregado com sucesso, clicando em Selecionar.')
-        save_print(navigate, '07_4_11_validacao_consolidador.png')
+    logging.info('|--> Validadndo a tela, verificando a existencia do campo Consolidador na tela.')
 
+    image_path = 'png_elements/18_validacao_consolidador.png'
+    coords = find_element(image_path, navigate, 'Validando se campo Consolidador carregou com sucesso')
+    
+    save_print(navigate, '07_4_11_validacao_consolidador.png')
+
+    if coords:
         # -- ALT + S --
         logging.info('|--> Apertando ALT + S') # Simular o atalho alt + S para clicar no botão selecionar
         ACTION.key_down(Keys.ALT).send_keys('s').key_up(Keys.ALT).perform()    
@@ -321,10 +329,10 @@ def listar_arquivos_xlsx(diretorio):
     return arquivos
 
 
-def controle_pastas(base_dir):
+def controle_pastas(base_path): # alterado base_dir para base_path
     # Diretório base
-    base_dir = os.path.expanduser(base_dir)
-    poc_dir = os.path.join(base_dir, "POC")
+    base_path = os.path.expanduser(base_path) # alterado base_dir para base_path
+    poc_dir = os.path.join(base_path, "POC") # alterado base_dir para base_path
     ano_atual = datetime.now().strftime("%Y")
 
     meses_portugues = {
@@ -339,9 +347,7 @@ def controle_pastas(base_dir):
 
     # Convertendo para português
     mes_anterior = meses_portugues.get(mes_anterior_en, mes_anterior_en)
-
-    print(mes_anterior)
-
+    
     # Caminhos das pastas
     ano_dir = os.path.join(poc_dir, ano_atual)
     mes_anterior_dir = os.path.join(ano_dir, mes_anterior)
@@ -380,7 +386,8 @@ def controle_pastas(base_dir):
     if not arquivo_encontrado:
         raise Exception("Business Exception: Nenhum arquivo contendo 'POC_Composição.xlsx' foi encontrado.")
 
-    return True, destino
+    return True, destino, diretorio_lancado
+
 
 def tratar_competencia(competencia):
     """
@@ -464,16 +471,8 @@ def obter_mes_e_ultimo_dia(mes_tratado, ano_tratado):
     
     # 2. fim = "ultimo_dia/mes_numero/ano_tratado"
     fim = f"{ultimo_dia}/{mes_numero}/{ano_tratado}"
-    
-    # 3. periodo = "01-mm-aaaa"
-    periodo = inicio[-7:].replace("/", "-")
-    
-    # 4. ultimo_periodo_fechado = data com o ultimo dia do mês
-    ultimo_periodo_fechado = datetime(ano_tratado, mes_numero_int, ultimo_dia)
-
-    ultimo_periodo_fechado = ultimo_periodo_fechado.strftime("%d-%m-%Y")
-    
-    return True, mes_numero, ultimo_dia, inicio, fim, periodo, ultimo_periodo_fechado
+        
+    return True, inicio, fim
 
 
 def acesso_agendar_planilhas(navigate):
@@ -589,45 +588,90 @@ def processar_empreendimentos(navigate, inicio, fim):
         ACTION.key_down(Keys.ALT).send_keys('o').key_up(Keys.ALT).perform()    
         save_print(navigate, '20_06_Selecionando_criterios_alt_o.png')
         time.sleep(1)
+        
+    else:
+        save_print(navigate, '20_ERRO_Selecionar_dados_da_agenda.png')
+        raise ImageNotFoundException(f"Imagem '{image_path}' não encontrada após {TIMEOUT} segundos.")  
 
-         # ---- Pop Up confirmacao ----
-        logging.info('|--> Procurando pop up confirmacao') 
-        image_path = 'png_elements/21_pop_up_confirmacao.png'
-        coords = find_element(image_path, navigate, 'Reconhecimento do pop up confirmacao') 
+    # ---- Pop Up confirmacao ----
+    logging.info('|--> Procurando pop up confirmacao') 
+    image_path = 'png_elements/21_pop_up_confirmacao.png'
+    coords = find_element(image_path, navigate, 'Reconhecimento do pop up confirmacao') 
 
-        if coords:  
-
-            # -- Enter --   
-            logging.info('|--> Apertando ENTER para Sim do pop up de confirmacao')  
-            ACTION.send_keys(Keys.ENTER).perform()
-            time.sleep(3) 
-            save_print(navigate, '20_07_otao_sim_pop_up_confirmacao.png')  
-
-            # -- ALT + G --
-            logging.info('|--> Apertando ALT + G') # Simular o atalho alt + O para clicar no botão Gerar
-            ACTION.key_down(Keys.ALT).send_keys('g').key_up(Keys.ALT).perform()    
-            save_print(navigate, '20_08_Selecionando_criterios_alt_G.png')
-            time.sleep(1)
+    if coords:  
 
         # -- Enter --   
         logging.info('|--> Apertando ENTER para Sim do pop up de confirmacao')  
         ACTION.send_keys(Keys.ENTER).perform()
         time.sleep(3) 
-        save_print(navigate, '20_09_Pop_up_gerando_planilha.png')     
+        save_print(navigate, '20_07_otao_sim_pop_up_confirmacao.png')  
+
+        # -- ALT + G --
+        logging.info('|--> Apertando ALT + G') # Simular o atalho alt + O para clicar no botão Gerar
+        ACTION.key_down(Keys.ALT).send_keys('g').key_up(Keys.ALT).perform()    
+        save_print(navigate, '20_08_Selecionando_criterios_alt_G.png')
+        time.sleep(1)
+
+    # ---- Pop Up confirmacao deseja continuar----
+    logging.info('|--> Procurando pop up confirmacao deseja continuar') 
+    image_path = 'png_elements/22_pop_up_confirmacao_deseja_continuar.png'
+    coords = find_element(image_path, navigate, 'Reconhecimento do pop up confirmacao deseja continuar') 
+
+    if coords:  
 
         # -- Enter --   
-        logging.info('|--> Apertando ENTER para OK do pop up de informacao')  
+        logging.info('|--> Apertando ENTER para Sim do pop up de confirmacao')  
         ACTION.send_keys(Keys.ENTER).perform()
         time.sleep(3) 
-        save_print(navigate, '20_09_Pop_up_planilha_gerada_com_sucesso.png')         
+        save_print(navigate, '22_01_botao_sim_pop_up_confirmacao_deseja_continuar.png')  
+
+    # ---- Pop Up informacao planilha gerada com ducesso ----
+    logging.info('|--> Procurando pop up informacao planilha gerada com sucesso') 
+    image_path = 'png_elements/23_pop_up_informacao_planilha_gerada_com_sucesso.png'
+    coords = find_element(image_path, navigate, 'Reconhecimento do pop up informacao planilha gerada com sucesso') 
+
+    if coords:  
+
+        # -- Enter --   
+        logging.info('|--> Apertando ENTER para SOK do pop up de informacao planilha gerada com sucesso')  
+        ACTION.send_keys(Keys.ENTER).perform()
+        time.sleep(3) 
+        save_print(navigate, '23_01_botao_ok_pop_up_informacao_planilha_gerada_com_sucesso.png')
+
+    # ---- Fechar tela de agendas por empreendimento ----
+    logging.info('|--> Procurando botao de close') 
+    image_path = 'png_elements/24_botao_close.png'
+    coords = find_element(image_path, navigate, 'Reconhecimento do botao close') 
+
+    if coords:  
+
+        click(coords[0] + 10, coords[1] + 20)    
+        save_print(navigate, '24_01_clicando_no_botao_close.png') 
 
     else:
-        save_print(navigate, '20_ERRO_Procurando_pop_up_dados_agenda.png')
+        save_print(navigate, '24_ERRO_Procurando_botao_close.png')
         raise ImageNotFoundException(f"Imagem '{image_path}' não encontrada após {TIMEOUT} segundos.")  
 
+    # ---- Pop Up confirmcao grava as alteracoes efetuadas ----
+    logging.info('|--> Procurando pop up de confirmacao grava as alteracoes efetuadas')    
+    image_path = 'png_elements/25_pop_up_confirmacao_grava_alteracoes_efetuadas.png'
+    coords = find_element(image_path, navigate, 'Reconhecimento do pop up de confirmacao grava as alteracoes efetuadas') 
+
+    if coords:  
+
+        # -- Enter --   
+        logging.info('|--> Apertando ENTER para SOK do pop up de confirmacao grava as alteracoes efetuadas')    
+        ACTION.send_keys(Keys.ENTER).perform()
+        time.sleep(3) 
+        save_print(navigate, '25_01_botao_sim_pop_up_confirmacao_grava_alteracoes efetuadas.png')
+
+    
         return True
 
-
+    else:
+        save_print(navigate, '25_ERRO_Procurando_botao_OK_pop_up_confirmacao_grava_alteracoes_efetuadas.png')
+        raise ImageNotFoundException(f"Imagem '{image_path}' não encontrada após {TIMEOUT} segundos.")
+      
 
 def click(coord_x, coord_y):
     ''' Realiza a ação do click via xdotool do Linux com base na coordenada fornecida '''
@@ -657,40 +701,6 @@ def find_element(image_path, navigate, stage, f5=False):
             navigate.refresh()
 
     raise ImageNotFoundException(f"Imagem '{image_path}' não encontrada após {TIMEOUT} segundos.") # Retorna erro se não encontrar a imagem dentro do tempo limite
-
-
-def is_image_present(image_path, navigate, stage, timeout=30, interval=1, f5=False):
-    """
-    Verifica se uma imagem está presente na tela dentro de um tempo limite.
- 
-    Args:
-        image_path (str): Caminho da imagem para buscar na tela.
-        navigate (selenium.webdriver): Instância do navegador Selenium (opcional, usado para refresh).
-        stage (str): Descrição do estágio atual, para logs.
-        timeout (int): Tempo máximo para aguardar pela imagem (em segundos).
-        interval (float): Intervalo entre tentativas de busca (em segundos).
-        f5 (bool): Se True, atualiza a página em cada tentativa.
- 
-    Returns:
-        bool: True se a imagem foi encontrada, False caso contrário.
-    """
- 
-    start_time = time.time()
- 
-    while time.time() - start_time < timeout:
-        try:
-            time.sleep(interval)
-            if get_coord(cv2.imread(image_path)):
-                logging.info(f"Imagem encontrada para: {stage}")
-                return True  # Imagem encontrada
-        except Exception as e:
-            logging.info(f"Falha ao localizar imagem para: {stage}. Erro: {e}")
- 
-        if f5:
-            navigate.refresh()
- 
-    logging.warning(f"Imagem '{image_path}' não encontrada dentro do timeout para: {stage}")
-    return False  # Imagem não encontrada
 
 
 def get_coord(template_img):
@@ -761,11 +771,21 @@ def run_routine():
     try:
         # -------- Ativando LOG -------- 
         rpa_data_id, dash_data_id = start_log()
+
+        tasks = fetch_pending_tasks()   
+
+        # -------- Interrompe a execução por falha no JSON -------- 
+        if not tasks:
+            logging.info('|----> Falha no JSON recebido')
+            return
         
+        logging.info(f'|--> Quantidade de tasks: {len(tasks)}')  
+
+                
         # ---- Controle das pastas e arquivo: OC_Composicao.xlsx a ser processado ---
         try:
             logging.info('|----> Tentando localizar arquivo para processamento dos dados')
-            success,  destino = controle_pastas(base_dir)
+            success,  destino, diretorio_lancado = controle_pastas(base_path)
             if not success:
                 raise Exception()
                 
@@ -875,6 +895,12 @@ def run_routine():
 
                 break
 
+                codigo = df.iloc[3]["CÓDIGO"]
+                competencia = df.iloc[3]["COMPETÊNCIA"]
+
+                print(codigo)
+                print(competencia)
+
                 # ---- Realizando tratamento nas competencias ---
                 try:
                     logging.info('|----> Realizando tratamento nas competencias')
@@ -893,7 +919,7 @@ def run_routine():
                 # ---- Realizando tratamento das datas ---
                 try:
                     logging.info('|----> Realizando tratamento nas datas')
-                    success, mes_numero, ultimo_dia, inicio, fim, periodo, ultimo_periodo_fechado = obter_mes_e_ultimo_dia(mes_tratado, ano_tratado)
+                    success, inicio, fim = obter_mes_e_ultimo_dia(mes_tratado, ano_tratado)
                     if not success:
                         raise Exception()
                         
@@ -954,7 +980,18 @@ def run_routine():
                     save_print(navigate, '10_ERRO_processando_empreendimentos.png')
                     send_error(rpa_data_id, dash_data_id, 'Erro: Falha durante processamento dos empreendimentos')
                     return
-                          
+
+
+            # Move o arquivo POC_Composicao para o diretório lancados
+            try: 
+                logging.info('|----> Movendo o arquivo POC_Composicao,xlsx para pasta lancados')
+                shutil.move(destino, diretorio_lancado)
+                logging.info('|----> [S] O arquivo POC_Composicao.xlsx foi movido com sucesso para a pasta lancados')
+
+            except Exception as e:             
+                logging.info('|----> [Aviso] Falha ao mover o arquivo POC_Composicao para a pasta lancados\n', e)
+                # Somente um alerta nao vai impactar na continuidade do porcesso
+
 
             # ---- Enviando informações finais ---
             logging.info('|----> Enviando informações finais')
