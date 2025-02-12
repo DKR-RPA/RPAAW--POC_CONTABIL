@@ -25,4 +25,9 @@ class Config():
     l_process = "RPAAW24-PROCESSAMENTO DO HBK (MEGA)"
     l_table = 'rpaaw24processamentodohbkmega'
 
+    g_file = 'OUTPUT_CHAMADO_REQ'
+    g_ticket = "" #environ['ZEEV_TICKET']
+    g_id_exec = "" #environ['ID_EXECUCAO']
+    g_excel = "" #environ['EXCEL_JSON']
+
 config = Config()

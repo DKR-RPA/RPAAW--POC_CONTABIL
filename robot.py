@@ -2,8 +2,10 @@ import pyperclip, time, cv2, numpy as np, subprocess, io, logging
 from PIL import Image
 from managers.config import config as c
 from managers.s3_manager import send_to_s3
-from managers.log_manager import start_log, make_error_obj, update_log_entry, make_success_obj
+from managers.log_manager import start_log, start_queue_task, make_error_obj, update_log_entry, make_success_obj, make_success_obj_task
 from managers.model_manager import RPATable, DashTable
+from managers.share_manager import clear_folder, send_file
+from managers.tasks_manager import fetch_pending_tasks
 from managers.teams_manager import send_card
 from managers.selenium_manager import close_leftover_webdriver_instances, start_selenium
 from selenium.webdriver.support import expected_conditions as EC
@@ -17,23 +19,21 @@ import shutil
 from datetime import datetime, timedelta
 import pandas as pd
 import calendar
+import time
 
 TEMP_METHOD = eval('cv2.TM_CCOEFF_NORMED')
 CONFIDENCE = 0.8
-TIMEOUT = 720
+TIMEOUT = 30
 INTERVAL = 5
 STR_CONCLUIDO = 'Processamento concluído'
 
-# Variaveis de ambiente
-base_path = "./Contabilidade/"
-# base_dir = "./Contabilidade/" -> testas comentado para excluir do codigo
 
 class ImageNotFoundException(Exception):
     """Exceção personalizada para quando a imagem não é encontrada dentro do timeout."""
     pass
 
 logging.basicConfig(level=logging.INFO, format='%(message)s')
-
+ZEEV_TICKET = c.g_ticket.split("/")[0]
 
 def login_portal_entrada(navigate):
     ''' Realiza o login no portal de entrada '''
@@ -284,7 +284,7 @@ def trocar_empresa(navigate, codigo):
     time.sleep(1)
 
     # -- Valor --   
-    logging.info('|--> Inserindo valor 1')  
+    logging.info(f'|--> Inserindo valor: {codigo}')  
     ACTION.send_keys(codigo).perform()
     time.sleep(1) 
     save_print(navigate, '07_4_8_Selecionando_valor_1.png')
@@ -309,84 +309,45 @@ def trocar_empresa(navigate, codigo):
 
     if coords:
         # -- ALT + S --
+        time.sleep(3)
         logging.info('|--> Apertando ALT + S') # Simular o atalho alt + S para clicar no botão selecionar
         ACTION.key_down(Keys.ALT).send_keys('s').key_up(Keys.ALT).perform()    
         save_print(navigate, '07_4_11_Selecionando_criterios_alt_s.png')
-        
+
+        logging.info('|--> verificando a existencia de pop up erro.')
+
+        try:
+            image_path = 'png_elements/28_pop_up_erro_2.png'
+            coords = find_element(image_path, navigate, 'Validando se ocorreu alguma erro no processamento de not valid', time_out=10)
+        except:
+            coords = ""
+            logging.info('|--> Pop up de erro nao indentificado') 
+
+        if coords:
+            save_print(navigate, '07_4_12_validacao_consolidador.png')
+            # -- ALT + O --
+            time.sleep(1)
+            logging.info('|--> Apertando ALT + O') # Simular o atalho alt + O para clicar no botão OK
+            ACTION.key_down(Keys.ALT).send_keys('o').key_up(Keys.ALT).perform()    
+            save_print(navigate, '07_4_11_Selecionando_criterios_alt_O.png')
+
+            # ---- Fechar tela de trocar empresa ----
+            logging.info('|--> Procurando botao de close') 
+            image_path = 'png_elements/24_botao_close.png'
+            coords = find_element(image_path, navigate, 'Reconhecimento do botao close') 
+
+            if coords:  
+
+                click(coords[0] + 10, coords[1] + 20)    
+                save_print(navigate, '27_01_clicando_no_botao_close.png') 
+
+                raise Exception("Erro - Ao inserir o Codigo da empresa/empreendimento o trocar empresa retornou vazio os campos.") 
+            
         return True
         
     else:
         logging.warning('|--> Campo Consolidador não carregou dentro do tempo limite.')
         raise ImageNotFoundException(f"Imagem '{image_path}' não encontrada após {TIMEOUT} segundos.")
-
-
-def listar_arquivos_xlsx(diretorio):
-    arquivos = []
-    for root, _, files in os.walk(diretorio):  # Percorre diretórios e subdiretórios
-        for f in files:
-            if f.lower().strip().endswith(".xlsx"):
-                arquivos.append(os.path.join(root, f))  # Salva o caminho completo
-    return arquivos
-
-
-def controle_pastas(base_path): # alterado base_dir para base_path
-    # Diretório base
-    base_path = os.path.expanduser(base_path) # alterado base_dir para base_path
-    poc_dir = os.path.join(base_path, "POC") # alterado base_dir para base_path
-    ano_atual = datetime.now().strftime("%Y")
-
-    meses_portugues = {
-        "January": "janeiro", "February": "fevereiro", "March": "março", 
-        "April": "abril", "May": "maio", "June": "junho", 
-        "July": "julho", "August": "agosto", "September": "setembro", 
-        "October": "outubro", "November": "novembro", "December": "dezembro"
-    }
-
-    # Obtendo o nome do mês anterior em inglês
-    mes_anterior_en = (datetime.now().replace(day=1) - timedelta(days=1)).strftime("%B")
-
-    # Convertendo para português
-    mes_anterior = meses_portugues.get(mes_anterior_en, mes_anterior_en)
-    
-    # Caminhos das pastas
-    ano_dir = os.path.join(poc_dir, ano_atual)
-    mes_anterior_dir = os.path.join(ano_dir, mes_anterior)
-    lancado_dir = os.path.join(mes_anterior_dir, "Lançado")
-
-    # Criando as pastas, se não existirem
-    for dir_path in [poc_dir, ano_dir, mes_anterior_dir, lancado_dir]:
-        os.makedirs(dir_path, exist_ok=True)
-
-    # Diretórios de saída
-    diretorio_arquivos = mes_anterior_dir
-    diretorio_lancado = lancado_dir
-
-    # Verifica a existência de arquivos .xlsx na pasta POC e Mês
-    arquivos_xlsx = set(listar_arquivos_xlsx(poc_dir) + listar_arquivos_xlsx(mes_anterior_dir))
-
-    if not arquivos_xlsx:
-        # Caso não existam, verificar na pasta do mês atual
-        mes_atual = datetime.now().strftime("%B")
-        mes_atual_dir = os.path.join(ano_dir, mes_atual)
-        if not os.path.exists(mes_atual_dir):
-            raise Exception(f"Business Exception: Nenhum arquivo .xlsx encontrado em {poc_dir} ou {mes_anterior_dir}")
-    
-    # Verifica se há um arquivo que contenha "POC_Composição" no nome
-    arquivo_encontrado = None
-    for arquivo in arquivos_xlsx:
-        if "POC_Composição" in arquivo:
-            arquivo_encontrado = arquivo
-            print(f"O arquivo: {arquivo_encontrado}, localizado com sucesso.")
-            
-            # Move o arquivo encontrado para o diretório destino
-            destino = os.path.join(diretorio_arquivos, os.path.basename(arquivo_encontrado))
-            shutil.move(arquivo_encontrado, destino)
-            break
-
-    if not arquivo_encontrado:
-        raise Exception("Business Exception: Nenhum arquivo contendo 'POC_Composição.xlsx' foi encontrado.")
-
-    return True, destino, diretorio_lancado
 
 
 def tratar_competencia(competencia):
@@ -415,25 +376,6 @@ def tratar_competencia(competencia):
         raise Exception("Business Exception: Os dados no campo Competência fora do formata esperado: 'Dezembro/2024'.")  # Retorna erro se o ano não for um número válido
 
     return True, mes_tratado, ano_tratado
-
-
-def processar_excel(arquivo_encontrado):
-    # Lendo o arquivo Excel
-    df = pd.read_excel(arquivo_encontrado, dtype=str)  # Lendo tudo como string para evitar problemas
-
-    # Tratando os nomes das colunas (tudo maiúsculo e sem espaços)
-    df.columns = [col.strip().upper().replace(" ", "_") for col in df.columns]
-
-    # Removendo espaços extras das células e tratando INCC
-    if "INCC" in df.columns:
-        df["INCC"] = df["INCC"].str.strip().str.upper().map({"S": True, "N": False})
-
-    # Tratando os demais campos removendo espaços extras nas extremidades
-    for col in df.columns:
-        if df[col].dtype == "object":  # Apenas para colunas de texto
-            df[col] = df[col].str.strip()
-
-    return True, df
 
 
 def obter_mes_e_ultimo_dia(mes_tratado, ano_tratado):
@@ -517,6 +459,8 @@ def acesso_agendar_planilhas(navigate):
         click(coords[0] + 31, coords[1] + 43)    
         save_print(navigate, '08_Acessando_menu_de_busca.png') 
 
+        return True
+
     else:
         save_print(navigate, '08_ERRO_Procurando_menu_de_busca.png')
         raise ImageNotFoundException(f"Imagem '{image_path}' não encontrada após {TIMEOUT} segundos.")
@@ -541,7 +485,33 @@ def processar_empreendimentos(navigate, inicio, fim):
         logging.info('|--> Apertando ALT + L') # Simular o atalho alt + L para clicar no botão alterar dados
         ACTION.key_down(Keys.ALT).send_keys('l').key_up(Keys.ALT).perform()    
         save_print(navigate, '19_02_Selecionando_criterios_alt_L.png')
-        time.sleep(1)           
+        time.sleep(1)  
+
+        try:
+            image_path = 'png_elements/29_pop_up_informacao_.png'
+            coords = find_element(image_path, navigate, 'Selecionando os empreendimentos')           
+        except:
+            coords =""
+
+        if coords:
+
+            # -- Enter --   
+            save_print(navigate, '29_01_botao_ok_pop_up_informacao.png')  
+            logging.info('|--> Apertando ENTER para OK do pop up de informacao')  
+            ACTION.send_keys(Keys.ENTER).perform()
+            time.sleep(1) 
+
+            # ---- Fechar tela de agendas por empreendimento ----
+            logging.info('|--> Procurando botao de close') 
+            image_path = 'png_elements/24_botao_close.png'
+            coords = find_element(image_path, navigate, 'Reconhecimento do botao close') 
+
+            if coords:  
+
+                click(coords[0] + 10, coords[1] + 20)    
+                save_print(navigate, '27_01_clicando_no_botao_close.png') 
+
+                raise Exception("Nao foi encontrado dados ao selecionar agendar a planilha.")          
 
     else:
         save_print(navigate, '19_ERRO_Selecionar_empreendimento.png')
@@ -557,30 +527,30 @@ def processar_empreendimentos(navigate, inicio, fim):
         logging.info('|--> Apertando TAB') 
         ACTION.send_keys(Keys.TAB).perform()
         save_print(navigate, '20_01_Selecionando_criterios_tab.png')
-        time.sleep(1)
+        time.sleep(0.3)
 
         # -- TAB --
         logging.info('|--> Apertando TAB') 
         ACTION.send_keys(Keys.TAB).perform()
         save_print(navigate, '20_02_Selecionando_criterios_tab.png')
-        time.sleep(1)
+        time.sleep(0.3)
 
         # -- Valor --   
         logging.info('|--> Inserindo data inicio')  
         ACTION.send_keys(inicio).perform()
-        time.sleep(1) 
+        time.sleep(0.3)
         save_print(navigate, '20_03_Selecionando_data_inicio.png')
 
         # -- TAB --
         logging.info('|--> Apertando TAB') 
         ACTION.send_keys(Keys.TAB).perform()
         save_print(navigate, '20_04_Selecionando_criterios_tab.png')
-        time.sleep(1)
+        time.sleep(0.3)
 
         # -- Valor --   
         logging.info('|--> Inserindo data fim')  
         ACTION.send_keys(fim).perform()
-        time.sleep(1) 
+        time.sleep(0.3)
         save_print(navigate, '20_05_Selecionando_data_fim.png')
 
         # -- ALT + O --
@@ -603,7 +573,7 @@ def processar_empreendimentos(navigate, inicio, fim):
         # -- Enter --   
         logging.info('|--> Apertando ENTER para Sim do pop up de confirmacao')  
         ACTION.send_keys(Keys.ENTER).perform()
-        time.sleep(3) 
+        time.sleep(1) 
         save_print(navigate, '20_07_otao_sim_pop_up_confirmacao.png')  
 
         # -- ALT + G --
@@ -612,30 +582,60 @@ def processar_empreendimentos(navigate, inicio, fim):
         save_print(navigate, '20_08_Selecionando_criterios_alt_G.png')
         time.sleep(1)
 
+    
     # ---- Pop Up confirmacao deseja continuar----
     logging.info('|--> Procurando pop up confirmacao deseja continuar') 
-    image_path = 'png_elements/22_pop_up_confirmacao_deseja_continuar.png'
-    coords = find_element(image_path, navigate, 'Reconhecimento do pop up confirmacao deseja continuar') 
+    try:
+        image_path = 'png_elements/22_pop_up_confirmacao_deseja_continuar.png'
+        coords = find_element(image_path, navigate, 'Reconhecimento do pop up confirmacao deseja continuar', time_out=300) 
+    except:
+        coords = ""
 
     if coords:  
 
         # -- Enter --   
         logging.info('|--> Apertando ENTER para Sim do pop up de confirmacao')  
         ACTION.send_keys(Keys.ENTER).perform()
-        time.sleep(3) 
+        time.sleep(1) 
         save_print(navigate, '22_01_botao_sim_pop_up_confirmacao_deseja_continuar.png')  
+
+    else: 
+        # ---- Pop Up erro ----
+        logging.info('|--> Procurando pop up informando erro') 
+        image_path = 'png_elements/27_pop_up_erro.png'
+        coords = find_element(image_path, navigate, 'Reconhecimento do pop up erro') 
+
+        if coords:  
+
+            # -- Enter --   
+            logging.info('|--> Apertando ENTER para OK do pop up erro')  
+            ACTION.send_keys(Keys.ENTER).perform()
+            time.sleep(1) 
+            save_print(navigate, '27_01_botao_OK_pop_up_erro.png')  
+
+            # ---- Fechar tela de agendas por empreendimento ----
+            logging.info('|--> Procurando botao de close') 
+            image_path = 'png_elements/24_botao_close.png'
+            coords = find_element(image_path, navigate, 'Reconhecimento do botao close') 
+
+            if coords:  
+
+                click(coords[0] + 10, coords[1] + 20)    
+                save_print(navigate, '27_01_clicando_no_botao_close.png') 
+
+                raise Exception("Erro na geração de planilha.")  
 
     # ---- Pop Up informacao planilha gerada com ducesso ----
     logging.info('|--> Procurando pop up informacao planilha gerada com sucesso') 
     image_path = 'png_elements/23_pop_up_informacao_planilha_gerada_com_sucesso.png'
-    coords = find_element(image_path, navigate, 'Reconhecimento do pop up informacao planilha gerada com sucesso') 
+    coords = find_element(image_path, navigate, 'Reconhecimento do pop up informacao planilha gerada com sucesso', time_out=300) 
 
     if coords:  
 
         # -- Enter --   
         logging.info('|--> Apertando ENTER para SOK do pop up de informacao planilha gerada com sucesso')  
         ACTION.send_keys(Keys.ENTER).perform()
-        time.sleep(3) 
+        time.sleep(1) 
         save_print(navigate, '23_01_botao_ok_pop_up_informacao_planilha_gerada_com_sucesso.png')
 
     # ---- Fechar tela de agendas por empreendimento ----
@@ -662,7 +662,7 @@ def processar_empreendimentos(navigate, inicio, fim):
         # -- Enter --   
         logging.info('|--> Apertando ENTER para SOK do pop up de confirmacao grava as alteracoes efetuadas')    
         ACTION.send_keys(Keys.ENTER).perform()
-        time.sleep(3) 
+        
         save_print(navigate, '25_01_botao_sim_pop_up_confirmacao_grava_alteracoes efetuadas.png')
 
     
@@ -681,14 +681,14 @@ def click(coord_x, coord_y):
     subprocess.run(["xdotool", "click", "1"])  # Left click
 
 
-def find_element(image_path, navigate, stage, f5=False):
+def find_element(image_path, navigate, stage, f5=False, time_out=TIMEOUT):
     ''' Espera até que a imagem seja encontrada na tela ou o timeout seja atingido. '''
 
     start_time = time.time()
 
-    while time.time() - start_time < TIMEOUT:        
+    while time.time() - start_time < time_out:        
         try:
-            time.sleep(INTERVAL)
+            # time.sleep(INTERVAL)
             coords = get_coord(cv2.imread(image_path))
             
             if coords:
@@ -764,6 +764,42 @@ def send_error(rpa_data_id, dash_data_id, error_msg):
     update_log_entry(dash_data_id, error_data, DashTable)
 
 
+def initialize_sheet(columns):
+    ''' Inicializa ou sobrescreve uma planilha com as colunas fornecidas '''
+    
+    # Cria um DataFrame vazio com as colunas especificadas
+    df = pd.DataFrame(columns=columns)
+    df.to_excel(CAMINHO_PLANILHA_RETORNO, index=False)
+    logging.info(f"Planilha inicializada em: {CAMINHO_PLANILHA_RETORNO}")
+
+
+    ''' Adiciona uma nova linha à planilha existente.'''
+
+    if os.path.exists(CAMINHO_PLANILHA_RETORNO):
+        df = pd.read_excel(CAMINHO_PLANILHA_RETORNO)
+        df = pd.concat([df, pd.DataFrame([row_data])], ignore_index=True)
+        df.to_excel(CAMINHO_PLANILHA_RETORNO, index=False)
+        logging.info(f"|----> Linha adicionada: {row_data}")
+    
+    else:
+        logging.info("|----> Planilha não encontrada.")
+
+
+def create_folder():
+    global CAMINHO_PLANILHA_RETORNO
+    ''' Cria a pasta onde o arquivo de output vai ser inserido '''
+
+    folder_name_o = 'output'
+    if not os.path.exists(folder_name_o):
+        os.makedirs(folder_name_o)
+
+    folder_name_i = 'input'
+    if not os.path.exists(folder_name_i):
+        os.makedirs(folder_name_i)
+
+    CAMINHO_PLANILHA_RETORNO = f'output/{c.g_file} - {ZEEV_TICKET}.xlsx'
+
+
 def run_routine():
     global ACTION
     ''' Rotina que faz o disparo do processo dentro do sistema Mega, e ao final, realiza o envio da mensagem no teams com o status do processo '''
@@ -771,6 +807,7 @@ def run_routine():
     try:
         # -------- Ativando LOG -------- 
         rpa_data_id, dash_data_id = start_log()
+        logging.info(f"|----> Zeev Ticket: {c.g_ticket}")  
 
         tasks = fetch_pending_tasks()   
 
@@ -781,34 +818,14 @@ def run_routine():
         
         logging.info(f'|--> Quantidade de tasks: {len(tasks)}')  
 
-                
-        # ---- Controle das pastas e arquivo: OC_Composicao.xlsx a ser processado ---
-        try:
-            logging.info('|----> Tentando localizar arquivo para processamento dos dados')
-            success,  destino, diretorio_lancado = controle_pastas(base_path)
-            if not success:
-                raise Exception()
-                
-            logging.info('|----> [S] O arquivo POC_Composicao.xlsx localizado com sucesso')
-                             
-        except Exception as e:
-            logging.info('|----> [E] O arquivo POC_Composicao.xlsx nao foi localizado\n', e)
-            send_error(rpa_data_id, dash_data_id, 'Erro: Falha ao localizar O arquivo POC_Composicao.xlsx')
-            return
+        # -------- Inicializa uma nova planilha de retorno -------- 
+        logging.info('|----> Inicilização da planilha de retorno')
         
-        # ---- Tratamento dos dados a serem processados ---
-        try:
-            logging.info('|----> Realizando tratamento do excel a ser processado')
-            success, df = processar_excel(destino)
-            if not success:
-                raise Exception()
-                
-            logging.info('|----> [S] Realizando tratamento do excel com sucesso')
-                             
-        except Exception as e:
-            logging.info('|----> [E] Realizando tratamento do excel\n', e)
-            send_error(rpa_data_id, dash_data_id, 'Erro: Falha ao realizar tratamento do excel')
-            return
+        columns = [
+            "Codigo", "Nome", "Status"
+        ]
+
+        initialize_sheet(columns)                
 
 
         # -------- Iniciando Selenium --------        
@@ -817,7 +834,6 @@ def run_routine():
             navigate = selenium_context
             ACTION = ActionChains(navigate)
             
-
             # ---- Login no portal de entrada ---
             try:
                 logging.info('|----> Tentando logar no portal de entrada')
@@ -868,130 +884,140 @@ def run_routine():
                 send_error(rpa_data_id, dash_data_id, 'Erro: Falha durante login no portal do mega')
                 return
             
-            for idx, poc_composicao in enumerate(df.itertuples(index=True), start=1):  # O índice será acessado
-                # Atribuindo valores às variáveis
-                codigo = poc_composicao.CÓDIGO
-                nome = poc_composicao.NOME
-                diretorio = poc_composicao.DIRETÓRIO_RELATÓRIOS
-                status = poc_composicao.STATUS
-                competencia = poc_composicao.COMPETÊNCIA
-                incc = poc_composicao.INCC
-                estagio = poc_composicao.ESTÁGIO
-                indice = poc_composicao.INDICE
-                cadastro = poc_composicao.CADASTRO
-                ajustes = poc_composicao.AJUSTES
+            # ---- Iteração com o banco de dados ---
+            for task in tasks:
+        
+                    # Atribuindo valores às variáveis
+                    codigo = task['codigo']
+                    nome = task['nome']
+                    diretorio = task['diretorio_relatorio']
+                    status = task['status']
+                    competencia = ['competência']
+                    incc = task['incc']
+                    estagio = task['estagio']
+                    indice = task['índice']
+                    cadastro = task['cadastro']
+                    ajustes = task['ajustes']
 
-                logging.info(f'Linha: {idx}  # Linha do DataFrame')
-                logging.info(f'Código: {codigo}')
-                logging.info(f'Nome: {nome}')
-                logging.info(f'Diretório Relatórios: {diretorio}')
-                logging.info(f'Status: {status}')
-                logging.info(f'Competência: {competencia}')
-                logging.info(f'INCC: {incc}')
-                logging.info(f'Estágio: {estagio}')
-                logging.info(f'Índice: {indice}')
-                logging.info(f'Cadastro: {cadastro}')
-                logging.info(f'Ajustes: {ajustes}')
 
-                break
+                    logging.info(f'Código: {codigo}')
+                    logging.info(f'Nome: {nome}')
+                    logging.info(f'Diretório Relatórios: {diretorio}')
+                    logging.info(f'Status: {status}')
+                    logging.info(f'Competência: {competencia}')
+                    logging.info(f'INCC: {incc}')
+                    logging.info(f'Estágio: {estagio}')
+                    logging.info(f'Índice: {indice}')
+                    logging.info(f'Cadastro: {cadastro}')
+                    logging.info(f'Ajustes: {ajustes}')
 
-                codigo = df.iloc[3]["CÓDIGO"]
-                competencia = df.iloc[3]["COMPETÊNCIA"]
-
-                print(codigo)
-                print(competencia)
-
-                # ---- Realizando tratamento nas competencias ---
-                try:
-                    logging.info('|----> Realizando tratamento nas competencias')
-                    success, mes_tratado, ano_tratado = tratar_competencia(competencia)
-                    if not success:
-                        raise Exception()
+                     # ---- Linha que vai ser adicionada na planilha caso dê erro ---
+                    error_obj = {
+                        "Codigo": codigo,
+                        "Nome": nome,
+                        "Status": "Falha"
                         
-                    logging.info('|----> [S] Realizando tratamento nas competencias')
-                                    
-                except Exception as e:
-                    logging.info('|----> [E] Realizando tratamento nas competencias\n', e)
-                    send_error(rpa_data_id, dash_data_id, 'Erro: Falha ao realizar tratamento nas competencias')
-                    return
+                    }
 
 
-                # ---- Realizando tratamento das datas ---
-                try:
-                    logging.info('|----> Realizando tratamento nas datas')
-                    success, inicio, fim = obter_mes_e_ultimo_dia(mes_tratado, ano_tratado)
-                    if not success:
-                        raise Exception()
+                    arquivo_encontrado = os.path.abspath("./Contabilidade/POC/2025/janeiro/POC_Composição_Janeiro2025.xlsx")
+                    print(arquivo_encontrado)  # Verifique se o caminho está correto
+
+                    # Lendo o arquivo Excel
+                    df = pd.read_excel(arquivo_encontrado, dtype=str)  # Lendo tudo como string para evitar problemas
+
+                    codigo = df.iloc[7]["Código"]
+                    competencia = df.iloc[7]["Competência"]
+
+                    print(codigo)
+                    print(competencia)
+
+                    for index, row in df.iloc[200:].iterrows():
+                            codigo = row["Código"]
+                            competencia = row["Competência"]
+
+                            print(f"Código: {codigo}, Competência: {competencia}")
+
+                    # ---- Realizando tratamento nas competencias ---
+                    try:
+                        logging.info('|----> Realizando tratamento nas competencias')
+                        success, mes_tratado, ano_tratado = tratar_competencia(competencia)
+                        if not success:
+                            raise Exception()
+                            
+                        logging.info('|----> [S] Realizando tratamento nas competencias')
+                                        
+                    except Exception as e:
+                        logging.info('|----> [E] Realizando tratamento nas competencias\n, {e}')
+                        send_error(rpa_data_id, dash_data_id, 'Erro: Falha ao realizar tratamento nas competencias')
+                        continue
+
+
+                    # ---- Realizando tratamento das datas ---
+                    try:
+                        logging.info('|----> Realizando tratamento nas datas')
+                        success, inicio, fim = obter_mes_e_ultimo_dia(mes_tratado, ano_tratado)
+                        if not success:
+                            raise Exception()
+                            
+                        logging.info('|----> [S] Realizando tratamento nas datas')
+                                        
+                    except Exception as e:
+                        logging.info('|----> [E] Realizando tratamento nas datas\n, {e}')
+                        send_error(rpa_data_id, dash_data_id, 'Erro: Falha ao realizar tratamento nas datas')
+                        continue
+
+
+                    # # ---- Trocando empresa ---
+                    try:
+                        logging.info('|----> Trocando empresa')
+                        success = trocar_empresa(navigate, codigo) 
+                        if not success:
+                            raise Exception()
                         
-                    logging.info('|----> [S] Realizando tratamento nas datas')
-                                    
-                except Exception as e:
-                    logging.info('|----> [E] Realizando tratamento nas datas\n', e)
-                    send_error(rpa_data_id, dash_data_id, 'Erro: Falha ao realizar tratamento nas datas')
-                    return
-
-
-                # # ---- Trocando empresa ---
-                try:
-                    logging.info('|----> Trocando empresa')
-                    success = trocar_empresa(navigate, codigo) 
-                    if not success:
-                        raise Exception()
-                    
-                    logging.info('|----> [S] Trocando empresa')
-                    save_print(navigate, '08_Menu_apos_trocar_empresa.png')
-                    
-                except Exception as e:
-                    logging.info('|----> [E] Trocando empresa\n', e)
-                    save_print(navigate, '07_ERRO_trocando_empresa.png')
-                    send_error(rpa_data_id, dash_data_id, 'Erro: Falha durante seleção da empresa')
-                    return
-            
-
-                # ---- Acessando retornos ---
-                try:
-                    logging.info('|----> Selecionando retornos pendentes')
-                    success = acesso_agendar_planilhas(navigate)
-                    if not success:
-                        raise Exception()
-                    
-                    logging.info('|----> [S] Selecionando retornos pendentes')
-                    save_print(navigate, '09_Selecao_retornos_pendentes.png')
-                    
-                except Exception as e:
-                    logging.info('|----> [E] Selecionando retornos pendentes\n', e)
-                    save_print(navigate, '08_ERRO_selecao_retornos_pendentes.png')
-                    send_error(rpa_data_id, dash_data_id, 'Erro: Falha durante seleção da pesquisa de retornos')
-                    return
+                        logging.info('|----> [S] Trocando empresa')
+                        save_print(navigate, '08_Menu_apos_trocar_empresa.png')
+                        
+                    except Exception as e:
+                        logging.info('|----> [E] Trocando empresa\n, {e}')
+                        save_print(navigate, '07_ERRO_trocando_empresa.png')
+                        send_error(rpa_data_id, dash_data_id, 'Erro: Falha durante seleção da empresa')
+                        continue
                 
 
-                # # ---- Processando empreendimentos ---
-                try:
-                    logging.info('|----> Processando empreendimentos')
-                    success = processar_empreendimentos(navigate , inicio, fim)
-                    if not success:
-                        raise Exception()
+                    # ---- Acessando agendar planilhas ---
+                    try:
+                        logging.info('|----> Selecionando agendar planilhas')
+                        success = acesso_agendar_planilhas(navigate)
+                        if not success:
+                            raise Exception()
+                        
+                        logging.info('|----> [S] Selecionando agendar planilhas')
+                        save_print(navigate, '09_Selecao_agendar_planilas.png')
+                        
+                    except Exception as e:
+                        logging.info('|----> [E] Selecionando agendar planilhas\n, {e}')
+                        save_print(navigate, '08_ERRO_selecao_agendar_planilhas.png')
+                        send_error(rpa_data_id, dash_data_id, 'Erro: Falha durante seleção de agendar planilhas')
+                        continue
                     
-                    logging.info('|----> [S] Processando empreendimentos')
-                    save_print(navigate, '11_empreendimento Processado.png')
-                    
-                except Exception as e:
-                    logging.info('|----> [E] Processando empreendimentos\n', e)
-                    save_print(navigate, '10_ERRO_processando_empreendimentos.png')
-                    send_error(rpa_data_id, dash_data_id, 'Erro: Falha durante processamento dos empreendimentos')
-                    return
 
-
-            # Move o arquivo POC_Composicao para o diretório lancados
-            try: 
-                logging.info('|----> Movendo o arquivo POC_Composicao,xlsx para pasta lancados')
-                shutil.move(destino, diretorio_lancado)
-                logging.info('|----> [S] O arquivo POC_Composicao.xlsx foi movido com sucesso para a pasta lancados')
-
-            except Exception as e:             
-                logging.info('|----> [Aviso] Falha ao mover o arquivo POC_Composicao para a pasta lancados\n', e)
-                # Somente um alerta nao vai impactar na continuidade do porcesso
-
+                    # # ---- Processando empreendimentos ---
+                    try:
+                        logging.info('|----> Processando empreendimentos')
+                        success = processar_empreendimentos(navigate , inicio, fim)
+                        if not success:
+                            raise Exception()
+                        
+                        logging.info('|----> [S] Processando empreendimentos')
+                        save_print(navigate, '11_empreendimento Processado.png')
+                        
+                    except Exception as e:
+                        logging.info('|----> [E] Processando empreendimentos\n, {e}')
+                        save_print(navigate, '10_ERRO_processando_empreendimentos.png')
+                        send_error(rpa_data_id, dash_data_id, 'Erro: Falha durante processamento dos empreendimentos')
+                        continue
+                          
 
             # ---- Enviando informações finais ---
             logging.info('|----> Enviando informações finais')
