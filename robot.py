@@ -920,24 +920,6 @@ def run_routine():
                     }
 
 
-                    arquivo_encontrado = os.path.abspath("./Contabilidade/POC/2025/janeiro/POC_Composição_Janeiro2025.xlsx")
-                    print(arquivo_encontrado)  # Verifique se o caminho está correto
-
-                    # Lendo o arquivo Excel
-                    df = pd.read_excel(arquivo_encontrado, dtype=str)  # Lendo tudo como string para evitar problemas
-
-                    codigo = df.iloc[7]["Código"]
-                    competencia = df.iloc[7]["Competência"]
-
-                    print(codigo)
-                    print(competencia)
-
-                    for index, row in df.iloc[200:].iterrows():
-                            codigo = row["Código"]
-                            competencia = row["Competência"]
-
-                            print(f"Código: {codigo}, Competência: {competencia}")
-
                     # ---- Realizando tratamento nas competencias ---
                     try:
                         logging.info('|----> Realizando tratamento nas competencias')
