@@ -1,42 +1,66 @@
-import requests, os, logging
+import requests, os, pandas as pd
 from datetime import datetime as dt
 from managers.config import config as c
+from managers.log_manager import log, log_erro
 
-logging.basicConfig(level=logging.INFO, format='%(message)s')
+COLUMNS = ["Codigo", "Nome", "Status"]
 
 
-def send_file(excel_file, file_name):
+def send_file():
     ''' Envia o arquivo para o Sharepoint '''
+    
+    log(f'----> Enviando excel no SharePoint:')
+    
+    headers = {'Authorization': f'Bearer {c.s_token}'}
+    url = c.s_url
+    form_data = {
+        'fileName': c.folder_path_o.replace(f'{c.folder_name_o}/', ''),
+        'folderName': c.s_rpa,
+        'folderNameRPA': c.s_folder,
+        'executionOutputFolder': dt.now().strftime("%d-%m-%y")
+    }  
 
-    try:
-        headers = {'Authorization': f'Bearer {c.s_token}'}
-        url = c.s_url
-        form_data = {
-            'fileName': file_name,
-            'folderName': c.s_rpa,
-            'folderNameRPA': c.s_folder,
-            'executionOutputFolder': dt.now().strftime("%d-%m-%y")
-        }  
-
-        with open(excel_file, 'rb') as f:
+    with open(c.folder_path_o, 'rb') as f:
+        try:
             files = {'file': f}
-            r = requests.post(url, headers=headers, data=form_data, files=files)
+            req = requests.post(url, headers=headers, data=form_data, files=files)
+            
+            log(f'--> Status Code: {req.status_code}')
+            log(f'--> Content: {req.content}')
 
-        logging.info(f"Status: {r.status_code}")
-        logging.info(f"Content: {r.content}")
-
-    except Exception as e:
-        logging.error(f'[E] Falha ao enviar o arquivo para o Sharepoint: {e}')
+        except Exception as e:
+            log_erro(f'Falha ao enviar o arquivo para o Sharepoint. Erro: {e}')
 
 
-def clear_folder(folder_path):
+def clear_folder():
     ''' Limpa a pasta de arquivos '''
 
-    logging.error(f'Limpando pasta {folder_path}')
-    if os.path.exists(folder_path) and os.path.isdir(folder_path):
-        
-        for item in os.listdir(folder_path):
-            item_path = os.path.join(folder_path, item)
+    log(f'----> Limpando pasta: {c.folder_path_o}')
+    
+    if os.path.exists(c.folder_path_o) and os.path.isdir(c.folder_path_o):        
+        for item in os.listdir(c.folder_path_o):
+            item_path = os.path.join(c.folder_path_o, item)
 
             if os.path.isfile(item_path):
                 os.remove(item_path)
+
+
+def create_folder():
+    ''' Cria a pasta onde o arquivo de output vai ser inserido '''
+
+    log('----> Criando palsta de output')
+    if not os.path.exists(c.folder_name_o):
+        os.makedirs(c.folder_name_o)
+
+    c.folder_path_o = f'{c.folder_name_o}/{c.g_file} - {c.zeev_ticket}.xlsx'
+
+
+def initialize_sheet():
+    ''' Inicializa ou sobrescreve uma planilha com as colunas fornecidas '''    
+    
+    log('----> Inicilização da planilha de retorno')
+    
+    df = pd.DataFrame(columns=COLUMNS) # Cria um DataFrame vazio com as colunas especificadas
+    df.to_excel(c.folder_path_o, index=False)
+    
+    log(f"---->Planilha inicializada em: {c.folder_path_o}")
