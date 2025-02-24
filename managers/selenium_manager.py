@@ -1,6 +1,7 @@
 import os, shutil
 from selenium import webdriver
 from contextlib import contextmanager
+from managers.log_manager import log
 from webdriver_manager.firefox import GeckoDriverManager
 from selenium.webdriver.firefox.options import Options
 from selenium.webdriver.firefox.service import Service
@@ -50,10 +51,11 @@ def start_selenium():
         navigate = webdriver.Chrome(options=opts, service=service) 
         navigate.set_window_size(1382, 736)
         
+        log('|----> Inciando navegador')
         yield navigate # Mantem o driver ativo até o fim do with
 
     except Exception as e:
-        print(f'| SELENIUM | Iniciando Selenium | Erro: {e}')        
+        log(f'| SELENIUM | Iniciando Selenium | Erro: {e}')        
 
     finally:        
         try: # Finaliza o webdriver
@@ -62,5 +64,5 @@ def start_selenium():
                 navigate.quit()
 
         except Exception as e:
-            print('| SELENIUM | Finalizando Selenium, forçando close/quit')   
+            log('| SELENIUM | Finalizando Selenium, forçando close/quit')   
      
