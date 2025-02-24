@@ -19,7 +19,7 @@ def start_log():
     ''' Alimenta as tabelas de log no banco de dados '''
     
     data = {
-        "nome_do_processo": c.s_process,
+        "nome_do_processo": c.l_process,
         "status": None,
         "task": None, 
         "data_inicio": get_date(), 
@@ -44,45 +44,15 @@ def start_log():
             
             return rpa_data.id, dash_data.id
                 
-        except:
+        except :
             logging.info(f'| START LOG | Iniciando Log no banco')
-            return False
-
-
-def start_queue_task(task, ticket):
-    ''' Cria os registros no banco com a data de início e task '''
-
-    data = {
-        "nome_do_processo": c.s_process,
-        "status": None,
-        "task": task, 
-        "data_inicio": get_date(), 
-        "data_fim": None,
-        "observacoes": None,
-        "id_execucao": c.g_id_exec, 
-        "ticket": ticket
-    }
-
-    rpa_data = RPATable(**data)
-        
-    with open_postgres_conn('Criando linha da task') as session:
-        try:
-            session.add(rpa_data)
-            session.commit()
-            
-            session.refresh(rpa_data)
-            
-            return rpa_data.id
-                
-        except:
-            logging.info(f"Falha ao criar a task com un Requisicao: {task['Un Requisição']}")
             return False
 
 
 def update_log_entry(entry_id, updated_data, class_type, dash_table_model=False):
     ''' Atualiza o log da execução no banco '''    
     
-    with open_postgres_conn('LOG Final') as session:
+    with open_postgres_conn('Update Log') as session:
         try:
             entry = session.query(class_type).filter_by(id=entry_id).one_or_none()
             
@@ -134,12 +104,33 @@ def make_success_obj():
         "observacoes": 'Robô executado com sucesso'
     }
 
-def make_success_obj_task(ordem):
-    ''' Retorna o objeto da task com sucesso '''     
 
-    return {
-        "id_execucao": c.g_id_exec,
-        "status": 200,
-        "data_fim": get_date(),
-        "observacoes": f'Robô executado com sucesso: {ordem}'
-    }
+def log(msg: str, step: str=None):
+    ''' Faz o registro de um log '''
+
+    if not step:
+        logging.info(f'| {c.g_id_exec} |{msg}')
+
+    else:
+        logging.info(f'| {c.g_id_exec} |{step}|{msg}')
+
+
+def log_erro(msg: str, step: str=None):
+    ''' Faz o registro de um log de erro '''
+
+    if not step:
+        logging.info(f'[ERRO] | {c.g_id_exec} | {msg}')
+    
+    else:
+        logging.info(f'[ERRO] | {c.g_id_exec} |{step}| {msg}')
+   
+    
+def finish_log(error:bool=False):
+    if error:
+        info_data = make_error_obj('Erro: Falha durante execução do script')
+        
+    else:
+        info_data = make_success_obj()        
+        
+    update_log_entry(c.rpa_data_id, info_data, RPATable)
+    update_log_entry(c.dash_data_id, info_data, DashTable)      
