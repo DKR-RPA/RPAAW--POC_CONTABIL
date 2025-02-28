@@ -94,29 +94,18 @@ def login_portal_entrada(navigate, step):
 
 def selecionar_sistema_mega(navigate, step):
     ''' Seleciona o sistema Mega e aguarda o carregamento da tela de login '''
-
+    time.sleep(60)
     # ---- Menu do servidor ----
     try:
         log('----> Acessando o sistema Mega', step)
         coords = find_element("png_elements/13_button_mega.png", navigate, 'Login Portal de Entrada', f5=True)        
         if not coords: raise Exception()
         
-        click(coords[0] + 32, coords[1] + 33, 5)
+        click(coords[0] + 32, coords[1] + 33)
         save_print(navigate, f'_{step}_0_Acesso_servidor.png')    
     
     except Exception as e:
         log_erro(f'Falha durante acesso ao sistema Mega. Erro: {e}', step)
-        return False
-
-
-    # ---- Menu do Mega ----
-    try:
-        log('--> Aguardando menu do mega', step) # Validação final
-        if not find_element("png_elements/14_tela_login_mega.png", navigate, 'Login Portal de Entrada'): raise Exception()
-        time.sleep(2)
-    
-    except Exception as e:
-        log_erro(f'Imagem 14_tela_login_mega não encontrada após {TIMEOUT} segundos. Erro: {e}', step)
         return False
 
 
@@ -129,59 +118,64 @@ def selecionar_sistema_mega(navigate, step):
                     
 def login_portal_mega(navigate, step):
     ''' Realiza o login no portal do mega '''
-
+    time.sleep(120)
+    navigate.switch_to.window(navigate.window_handles[-1]) 
     # ---- Realizar Login ----
-    log('--> Inserindo info do sistema mega', step)
-    if not find_element('png_elements/26_label_porla_mega.png', navigate, 'Buscando label tela login mega'): 
-        return
+    label_mega_login_img = "png_elements/30_campo_usuario.png"
+    coords = find_element(label_mega_login_img, navigate, 'Login Portal de Entrada', f5=True, time_out=30)
+
+    if coords: 
+
+        
+        click(coords[0] + 50, coords[1] + 17)
+        time.sleep(2.5)           
+        
+        # -- Usuário --
+        try:
+            log('--> Inserindo info do usuário', step)            
+            ACTION.send_keys(c.c_user).perform()
+            save_print(navigate, f'_{step}_0_Inserindo_info_do_usuario.png')
+        
+        except Exception as e:
+            log_erro(f'Falha durante inserção do usuário. Erro: {e}', step)
+            return False
+
+
+        # -- Tab --   
+        try:
+            log('--> Apertando TAB para senha', step)   
+            time.sleep(1) 
+            ACTION.send_keys(Keys.TAB).perform() 
+        
+        except Exception as e:
+            log_erro(f'Falha durante apertando TAB. Erro: {e}', step)
+            return False
+
+
+        # -- Senha --   
+        try:
+            log('--> Inserindo info da senha', step)  
+            time.sleep(1)
+            ACTION.send_keys(c.c_pwd).perform()
+            save_print(navigate, f'_{step}_1_Inserindo_info_da_senha.png')
+
+        except Exception as e:
+            log_erro(f'Falha durante inserção da senha. Erro: {e}', step)
+            return False
         
         
-    # -- Usuário --
-    try:
-        log('--> Inserindo info do usuário', step)            
-        ACTION.send_keys(c.c_user).perform()
-        save_print(navigate, f'_{step}_0_Inserindo_info_do_usuario.png')
-    
-    except Exception as e:
-        log_erro(f'Falha durante inserção do usuário. Erro: {e}', step)
-        return False
+        # -- Enter --  
+        try: 
+            log('--> Apertando ENTER para login', step)  
+            time.sleep(1) 
+            ACTION.send_keys(Keys.ENTER).perform()
+            save_print(navigate, f'_{step}_2_Aplicando_enter.png')
 
+        except Exception as e:
+            log_erro(f'Falha durante apertando ENTER. Erro: {e}', step)
+            return False
 
-    # -- Tab --   
-    try:
-        log('--> Apertando TAB para senha', step)   
-        time.sleep(1) 
-        ACTION.send_keys(Keys.TAB).perform() 
-    
-    except Exception as e:
-        log_erro(f'Falha durante apertando TAB. Erro: {e}', step)
-        return False
-
-
-    # -- Senha --   
-    try:
-        log('--> Inserindo info da senha', step)  
-        time.sleep(1)
-        ACTION.send_keys(c.c_pwd).perform()
-        save_print(navigate, f'_{step}_1_Inserindo_info_da_senha.png')
-
-    except Exception as e:
-        log_erro(f'Falha durante inserção da senha. Erro: {e}', step)
-        return False
-    
-    
-    # -- Enter --  
-    try: 
-        log('--> Apertando ENTER para login', step)  
-        time.sleep(1) 
-        ACTION.send_keys(Keys.ENTER).perform()
-        save_print(navigate, f'_{step}_2_Aplicando_enter.png')
-
-    except Exception as e:
-        log_erro(f'Falha durante apertando ENTER. Erro: {e}', step)
-        return False
-
-
+    time.sleep(30)
     # ---- Usuário já logado ----
     try:
         if find_element("png_elements/15_aviso_usuario_logado.png", navigate, 'Buscando Popup Usuário Logado', 10): # Caso encontre o aviso de usuário já logado, seleciona a opção "Não" para não desconectar o usuário
